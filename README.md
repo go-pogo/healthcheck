@@ -9,7 +9,7 @@ healthcheck
 
 [latest-release-url]: https://github.com/go-pogo/healthcheck/releases
 
-[build-status-img]: https://github.com/go-pogo/healthcheck/workflows/Test/badge.svg
+[build-status-img]: https://github.com/go-pogo/healthcheck/actions/workflows/test.yml/badge.svg
 
 [build-status-url]: https://github.com/go-pogo/healthcheck/actions/workflows/test.yml
 
