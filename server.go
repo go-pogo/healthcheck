@@ -22,38 +22,38 @@ func HttpHandler() http.Handler {
 
 func (c *Config) Handler() http.Handler { return HttpHandler() }
 
-type StateChecker interface {
-	CheckState(ctx context.Context) Status
+type StatusChecker interface {
+	CheckStatus(ctx context.Context) Status
 }
 
-type StateCheckerFunc func(ctx context.Context) Status
+type StatusCheckerFunc func(ctx context.Context) Status
 
-func (fn StateCheckerFunc) CheckState(ctx context.Context) Status { return fn(ctx) }
+func (fn StatusCheckerFunc) CheckStatus(ctx context.Context) Status { return fn(ctx) }
 
 var _ http.Handler = new(Server)
 
 type Server struct {
-	config    *Config
-	checks    map[string]StateChecker
-	lastState Status
+	config *Config
+	checks map[string]StatusChecker
+	status Status
 }
 
 func (c *Config) Server() *Server {
 	return &Server{
-		config:    c,
-		checks:    make(map[string]StateChecker, 2),
-		lastState: Unknown,
+		config: c,
+		checks: make(map[string]StatusChecker, 2),
+		status: Unknown,
 	}
 }
 
-func (s *Server) Check(name string, check StateChecker) { s.checks[name] = check }
+func (s *Server) Check(name string, check StatusChecker) { s.checks[name] = check }
 
-func (s *Server) CheckFunc(name string, check StateCheckerFunc) { s.Check(name, check) }
+func (s *Server) CheckFunc(name string, check StatusCheckerFunc) { s.Check(name, check) }
 
 func (s *Server) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 	n := len(s.checks)
 	if n == 0 {
-		s.logState(Healthy)
+		s.setStatus(Healthy)
 		_, _ = wri.Write(okBytes)
 		return
 	}
@@ -61,7 +61,7 @@ func (s *Server) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 	ctx, cancel := timeoutContext(req.Context(), s.config.Timeout)
 	defer cancel()
 
-	var state Status
+	var stat Status
 	result := make(map[string]string, n)
 
 	if s.config.CheckParallel {
@@ -70,32 +70,31 @@ func (s *Server) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
 			cp.do(ctx, name, check)
 		}
 		cp.Wait()
-		state = cp.state
+		stat = cp.status
 	} else {
 		for name, check := range s.checks {
-			result[name] = updateState(&state, check.CheckState(ctx)).String()
+			result[name] = updateStatus(&stat, check.CheckStatus(ctx)).String()
 		}
 	}
 
-	wri.Header().Set(s.config.Header, state.String())
-	s.logState(state)
+	wri.Header().Set(s.config.Header, stat.String())
+	s.setStatus(stat)
 
 	if b, err := json.Marshal(result); err != nil {
 		wri.WriteHeader(http.StatusInternalServerError)
-		// log error?
 	} else {
-		wri.WriteHeader(state.StatusCode())
+		wri.WriteHeader(stat.StatusCode())
 		wri.Header().Set("Content-Type", "application/json")
 		_, _ = wri.Write(b)
 	}
 }
 
-func (s *Server) logState(state Status) {
-	if state == Healthy && s.lastState != Healthy {
-		s.config.Logger.Healthy()
+func (s *Server) setStatus(stat Status) {
+	if s.config.Listener != nil && stat == Healthy && s.status != Healthy {
+		s.config.Listener.HealthChanged(stat, s.status)
 	}
 
-	s.lastState = state
+	s.status = stat
 }
 
 type checkParallel struct {
@@ -103,30 +102,30 @@ type checkParallel struct {
 	mut sync.Mutex
 
 	result map[string]string
-	state  Status
+	status Status
 }
 
-func (cp *checkParallel) do(ctx context.Context, name string, check StateChecker) {
+func (cp *checkParallel) do(ctx context.Context, name string, check StatusChecker) {
 	cp.Add(1)
 	go func() {
-		state := check.CheckState(ctx)
+		stat := check.CheckStatus(ctx)
 
 		cp.mut.Lock()
-		cp.result[name] = updateState(&cp.state, state).String()
+		cp.result[name] = updateStatus(&cp.status, stat).String()
 		cp.mut.Unlock()
 		cp.Done()
 	}()
 }
 
-func updateState(dest *Status, state Status) Status {
+func updateStatus(dest *Status, stat Status) Status {
 	if *dest == Error {
-		return state
+		return stat
 	}
-	if state == Error {
+	if stat == Error {
 		*dest = Error
 	} else if *dest == Healthy {
-		*dest = state
+		*dest = stat
 	}
 
-	return state
+	return stat
 }

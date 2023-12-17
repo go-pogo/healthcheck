@@ -65,7 +65,7 @@ func timeoutContext(ctx context.Context, t time.Duration) (context.Context, cont
 		ctx = context.Background()
 	}
 	if t != 0 {
-		if dl, ok := ctx.Deadline(); !ok || t < dl.Sub(time.Now()) {
+		if dl, ok := ctx.Deadline(); !ok || t < time.Until(dl) {
 			return context.WithTimeout(ctx, t)
 		}
 	}

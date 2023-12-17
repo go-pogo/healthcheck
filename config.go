@@ -18,11 +18,15 @@ const (
 	Header = "X-Service-Health"
 )
 
+type Listener interface {
+	HealthChanged(status, oldStatus Status)
+}
+
 type Option func(c *Config) error
 
 type Config struct {
 	HttpClient    *http.Client
-	Logger        Logger
+	Listener      Listener
 	Flag          string
 	Host          string
 	Port          serv.Port
@@ -44,9 +48,9 @@ func WithHttpClient(client *http.Client) Option {
 	}
 }
 
-func WithLogger(l Logger) Option {
+func WithListener(l Listener) Option {
 	return func(c *Config) error {
-		c.Logger = l
+		c.Listener = l
 		return nil
 	}
 }
@@ -116,9 +120,6 @@ func (c *Config) applyOptions(opts []Option) error {
 func (c *Config) defaults() {
 	if c.HttpClient == nil {
 		c.HttpClient = http.DefaultClient
-	}
-	if c.Logger == nil {
-		c.Logger = NopLogger()
 	}
 	if c.Host == "" {
 		c.Host = "localhost"

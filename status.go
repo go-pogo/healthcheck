@@ -29,8 +29,8 @@ const (
 	unknown   = "unknown"
 )
 
-func ParseStatus(v string) Status {
-	switch v {
+func ParseStatus(s string) Status {
+	switch s {
 	case ok:
 		return Healthy
 	case unhealthy:
@@ -53,8 +53,8 @@ func StatusCode(c int) Status {
 }
 
 // StatusCode returns a http statuscode which represents Status.
-func (r Status) StatusCode() int {
-	switch r {
+func (s Status) StatusCode() int {
+	switch s {
 	case Healthy:
 		return http.StatusOK // 200
 	case Unhealthy:
@@ -67,8 +67,8 @@ func (r Status) StatusCode() int {
 }
 
 // String return a string representation of Status.
-func (r Status) String() string {
-	switch r {
+func (s Status) String() string {
+	switch s {
 	case Healthy:
 		return ok
 	case Unhealthy:
@@ -80,10 +80,10 @@ func (r Status) String() string {
 	}
 }
 
-func (r Status) GoString() string {
-	return "healthcheck.Status(" + strconv.Itoa(int(r)) + ")"
+func (s Status) GoString() string {
+	return "healthcheck.Status(" + strconv.Itoa(int(s)) + ")"
 }
 
 // Exit causes the current program to exit with Status as the given status code.
 // The program terminates immediately; deferred functions are not run.
-func (r Status) Exit() { os.Exit(int(r)) }
+func (s Status) Exit() { os.Exit(int(s)) }
