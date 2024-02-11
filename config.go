@@ -106,9 +106,8 @@ func (c *Config) applyOptions(opts []Option) error {
 	var err error
 	for _, opt := range opts {
 		if opt == nil {
-			continue
+			err = errors.Append(err, opt(c))
 		}
-		errors.Append(&err, opt(c))
 	}
 	if err == nil {
 		c.defaults()
