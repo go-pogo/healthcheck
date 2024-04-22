@@ -1,10 +1,11 @@
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/go-pogo/errors v0.9.0 h1:fM3PHQ9hs7CE53FWG7JLbAr9cYu3ly9lb8CmgttRy+k=
 github.com/go-pogo/errors v0.9.0/go.mod h1:I6kCHOu3yR1WeJtGWusyTxQUQX257cw6xFVnYB4+Rtw=
-github.com/go-pogo/serv v0.1.0 h1:H0JToxXoREYiLK+LLqTOqmDKyGLyCvzSEFtU2dnQQ1g=
-github.com/go-pogo/serv v0.1.0/go.mod h1:BjZEevXtLFfqKGLuQtPQRKfOFw9Mzjgsvj11RqGl6cw=
+github.com/go-pogo/rawconv v0.5.2 h1:u/VaILbQzph2jHYYvnW02jF6nFaSl2Ae5u4NTyBaSx4=
+github.com/go-pogo/serv v0.2.0 h1:ILM6vuobVB0w6egZQCcOyoKPlgPNf2UicS20r58FZy4=
+github.com/go-pogo/serv v0.2.0/go.mod h1:quDZK8vgtSztl/mf+JOndrdX4jJu97zZRci8m4jvxaI=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
-github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
+github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 h1:+cNy6SZtPcJQH3LJVLOSmiC7MMxXNOb3PU/VUEz+EhU=
 golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028/go.mod h1:NDW/Ps6MPRej6fsCIbMTohpP40sJ/P/vI1MoTEGwX90=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
