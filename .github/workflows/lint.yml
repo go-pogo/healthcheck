@@ -28,6 +28,6 @@ jobs:
         run: go mod download && go mod verify
 
       - name: Run linter
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v5
         with:
           version: latest
