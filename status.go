@@ -8,75 +8,58 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync/atomic"
 )
 
-// Status indicates the health status of the container.
+// Status describes the health status of a service.
 // https://docs.docker.com/engine/reference/builder/#healthcheck
-type Status int
+// https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+type Status int8
 
 const (
-	Unknown Status = -1
-	// Healthy indicates the container is healthy and ready for use.
-	Healthy Status = 0
-	// Unhealthy indicates the container is not working correctly.
-	Unhealthy Status = 1
-	// Error indicates an error occurred while performing the health check.
-	// This result should be treated as a panic.
-	Error Status = 3
-
-	ok        = "ok"
-	unhealthy = "unhealthy"
-	unknown   = "unknown"
+	// StatusUnknown indicates the service's status is yet to be determined.
+	StatusUnknown Status = 0
+	// StatusHealthy indicates the service is working as expected.
+	StatusHealthy Status = 1
+	// StatusUnhealthy indicates the service is not working correctly.
+	StatusUnhealthy Status = -1
 )
 
-func ParseStatus(s string) Status {
-	switch s {
-	case ok:
-		return Healthy
-	case unhealthy:
-		return Unhealthy
-	case "", unknown:
-		return Unknown
-	}
-	return Error
-}
-
-// StatusCode returns a Status representing the given http status code.
+// StatusCode returns a [Status] representing the given http status code.
 func StatusCode(c int) Status {
-	if c == http.StatusInternalServerError {
-		return Error
+	switch c {
+	case http.StatusTooEarly:
+		return StatusUnknown
+	case http.StatusOK:
+		return StatusHealthy
+	default:
+		return StatusUnhealthy
 	}
-	if c < 400 {
-		return Healthy
-	}
-	return Unhealthy
 }
 
-// StatusCode returns a http statuscode which represents Status.
+// StatusCode returns a http status code which represents [Status].
 func (s Status) StatusCode() int {
 	switch s {
-	case Healthy:
-		return http.StatusOK // 200
-	case Unhealthy:
-		return http.StatusServiceUnavailable // 503
-	case Unknown:
+	case StatusUnknown:
 		return http.StatusTooEarly // 425
+	case StatusHealthy:
+		return http.StatusOK // 200
+	case StatusUnhealthy:
+		return http.StatusServiceUnavailable // 503
 	default:
 		return http.StatusInternalServerError // 500
 	}
 }
 
-// String return a string representation of Status.
+// String return a string representation of [Status].
 func (s Status) String() string {
 	switch s {
-	case Healthy:
-		return ok
-	case Unhealthy:
-		return unhealthy
-	case Unknown:
-		return unknown
+	case StatusHealthy:
+		return "healthy"
+	case StatusUnhealthy:
+		return "unhealthy"
 	default:
-		return "error"
+		return "unknown"
 	}
 }
 
@@ -84,6 +67,27 @@ func (s Status) GoString() string {
 	return "healthcheck.Status(" + strconv.Itoa(int(s)) + ")"
 }
 
-// Exit causes the current program to exit with Status as the given status code.
-// The program terminates immediately; deferred functions are not run.
+// Exit causes the current program to exit with [Status] as the given status
+// code. The program terminates immediately; deferred functions are not run.
 func (s Status) Exit() { os.Exit(int(s)) }
+
+// AtomicStatus is an atomic [Status]. The zero value is [StatusUnknown].
+type AtomicStatus struct {
+	x atomic.Int32
+}
+
+// Load atomically loads and returns the [Status] stored in x.
+func (x *AtomicStatus) Load() Status { return Status(x.x.Load()) }
+
+// Store atomically stores val into x.
+func (x *AtomicStatus) Store(val Status) { x.x.Store(int32(val)) }
+
+// Swap atomically stores new into x and returns the previous [Status].
+func (x *AtomicStatus) Swap(new Status) (old Status) {
+	return Status(x.x.Swap(int32(new)))
+}
+
+// CompareAndSwap executes the compare-and-swap operation for x.
+func (x *AtomicStatus) CompareAndSwap(old, new Status) (swapped bool) {
+	return x.x.CompareAndSwap(int32(old), int32(new))
+}
