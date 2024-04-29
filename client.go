@@ -8,9 +8,9 @@ import (
 	"context"
 	"crypto/tls"
 	"github.com/go-pogo/errors"
-	"github.com/go-pogo/serv"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"time"
 )
@@ -24,8 +24,9 @@ func (e InvalidStatusCode) Error() string {
 }
 
 type ClientConfig struct {
-	Host    string `default:"localhost"`
-	Port    serv.Port
+	// BaseURL of form "[scheme://]ipaddr[:port]" or
+	// "[scheme://]hostname[:port]", both without trailing slash.
+	BaseURL string        `default:"localhost"`
 	Path    string        `default:"/healthy"`
 	Timeout time.Duration `default:"3s"`
 }
@@ -33,42 +34,62 @@ type ClientConfig struct {
 type Client struct {
 	ClientConfig
 
-	httpClient *http.Client
-	tls        bool
+	httpClient  *http.Client
+	bindBaseURL *string
 }
 
-func NewClient(tlsConf *tls.Config) *Client {
-	c := &Client{
-		httpClient: &http.Client{},
+func NewClient(conf ClientConfig, opts ...ClientOption) (*Client, error) {
+	c := Client{ClientConfig: conf}
+
+	var err error
+	for _, opt := range opts {
+		err = errors.Append(err, opt.apply(&c))
 	}
-	if tlsConf != nil {
-		c.httpClient.Transport = &http.Transport{TLSClientConfig: tlsConf}
-		c.tls = true
-	}
-	return c
+	return &c, err
 }
 
-func (c *Client) newRequest() *http.Request {
-	req := http.Request{
-		Method: http.MethodGet,
-		URL: &url.URL{
-			Scheme: "http",
-			Host:   c.Host,
-			Path:   c.Path,
-		},
+func (c *Client) tlsConfig() *tls.Config {
+	if c.httpClient == nil || c.httpClient.Transport == nil {
+		return nil
+	}
+	if t, ok := c.httpClient.Transport.(*http.Transport); ok {
+		return t.TLSClientConfig
+	}
+	return nil
+}
+
+func (c *Client) newRequest() (*http.Request, error) {
+	base := c.BaseURL
+	if c.bindBaseURL != nil {
+		base = *c.bindBaseURL
+	}
+
+	u, err := url.ParseRequestURI(base)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	if c.tlsConfig() != nil {
+		u.Scheme = "https"
+	} else if u.Scheme == "" {
+		u.Scheme = "http"
+	}
+	if u.Host == "" {
+		u.Host = "localhost"
+	}
+	if u.Path != "" {
+		u.Path = path.Join(u.Path, c.Path)
+	}
+
+	return &http.Request{
+		Method:     http.MethodGet,
+		URL:        u,
 		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
 		ProtoMinor: 1,
 		Header:     make(http.Header),
-		Host:       c.Host,
-	}
-	if c.tls {
-		req.URL.Scheme = "https"
-	}
-	if c.Port != 0 {
-		req.URL.Host = serv.JoinHostPort(req.URL.Host, c.Port)
-	}
-	return &req
+		Host:       u.Host,
+	}, nil
 }
 
 func (c *Client) Request(ctx context.Context) (Status, error) {
@@ -82,7 +103,17 @@ func (c *Client) Request(ctx context.Context) (Status, error) {
 		defer cancelFn()
 	}
 
-	resp, err := c.httpClient.Do(c.newRequest().WithContext(ctx))
+	req, err := c.newRequest()
+	if err != nil {
+		return StatusUnknown, errors.WithStack(err)
+	}
+
+	httpClient := c.httpClient
+	if c.httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return StatusUnknown, errors.WithStack(err)
 	}
