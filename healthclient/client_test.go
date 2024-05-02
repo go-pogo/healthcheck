@@ -2,12 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package healthcheck
+package healthclient
 
 import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"github.com/go-pogo/healthcheck"
 	"github.com/stretchr/testify/assert"
 	"net/http/httptest"
 	"testing"
@@ -15,21 +16,21 @@ import (
 
 func TestClient_Request(t *testing.T) {
 	t.Run("without tls", func(t *testing.T) {
-		srv := httptest.NewServer(SimpleHTTPHandler())
+		srv := httptest.NewServer(healthcheck.SimpleHTTPHandler())
 		defer srv.Close()
 
-		client, err := NewClient(ClientConfig{BaseURL: srv.URL})
+		client, err := New(Config{BaseURL: srv.URL})
 		assert.NoError(t, err)
 
 		stat, err := client.Request(context.Background())
 		assert.NoError(t, err)
-		assert.Equal(t, StatusHealthy, stat)
+		assert.Equal(t, healthcheck.StatusHealthy, stat)
 	})
 	t.Run("with tls", func(t *testing.T) {
-		srv := httptest.NewTLSServer(SimpleHTTPHandler())
+		srv := httptest.NewTLSServer(healthcheck.SimpleHTTPHandler())
 		defer srv.Close()
 
-		client, err := NewClient(ClientConfig{},
+		client, err := New(Config{},
 			WithBindBaseURL(&srv.URL),
 			WithTLSConfig(&tls.Config{
 				RootCAs:    x509.NewCertPool(),
@@ -41,6 +42,6 @@ func TestClient_Request(t *testing.T) {
 
 		stat, err := client.Request(context.Background())
 		assert.NoError(t, err)
-		assert.Equal(t, StatusHealthy, stat)
+		assert.Equal(t, healthcheck.StatusHealthy, stat)
 	})
 }

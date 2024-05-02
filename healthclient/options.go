@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package healthcheck
+package healthclient
 
 import (
 	"crypto/tls"
@@ -11,48 +11,52 @@ import (
 	"net/http"
 )
 
-type ClientOption interface {
-	apply(c *Client) error
-}
+type Option func(c *Client) error
 
-type clientOptionFunc func(c *Client) error
-
-func (fn clientOptionFunc) apply(c *Client) error { return fn(c) }
-
-func WithHTTPClient(httpClient *http.Client) ClientOption {
-	return clientOptionFunc(func(c *Client) error {
+func WithHTTPClient(httpClient *http.Client) Option {
+	return func(c *Client) error {
 		c.httpClient = httpClient
 		return nil
-	})
+	}
 }
 
-func WithTLSConfig(tlsConf *tls.Config) ClientOption {
-	return clientOptionFunc(func(c *Client) error {
+const panicNilTLSConfig = "healthcheck.WithTLSConfig: tls.Config should not be nil"
+
+func WithTLSConfig(conf *tls.Config) Option {
+	return func(c *Client) error {
+		if conf == nil {
+			panic(panicNilTLSConfig)
+		}
+
 		if c.httpClient == nil {
 			c.httpClient = &http.Client{
-				Transport: &http.Transport{TLSClientConfig: tlsConf},
+				Transport: &http.Transport{TLSClientConfig: conf},
 			}
 			return nil
 		}
 		if c.httpClient.Transport == nil {
-			c.httpClient.Transport = &http.Transport{TLSClientConfig: tlsConf}
+			c.httpClient.Transport = &http.Transport{TLSClientConfig: conf}
 			return nil
 		}
 		if t, ok := c.httpClient.Transport.(*http.Transport); ok {
-			t.TLSClientConfig = tlsConf
+			t.TLSClientConfig = conf
 			return nil
 		}
 
 		return errors.New("cannot add tls.Config to http.Client.Transport of unknown type")
-	})
+	}
 }
 
-func WithTLSRootCAs(certs ...tls.Certificate) ClientOption {
-	return clientOptionFunc(func(c *Client) error {
-		tlsConf := c.tlsConfig()
+func WithTLSRootCAs(certs ...tls.Certificate) Option {
+	return func(c *Client) error {
+		if len(certs) == 0 {
+			return nil
+		}
+
+		tlsConf := c.TLSConfig()
 		if tlsConf == nil {
 			tlsConf = new(tls.Config)
-			if err := WithTLSConfig(tlsConf).apply(c); err != nil {
+			if err := WithTLSConfig(tlsConf)(c); err != nil {
 				return err
 			}
 		}
@@ -68,12 +72,12 @@ func WithTLSRootCAs(certs ...tls.Certificate) ClientOption {
 			tlsConf.RootCAs.AddCert(x)
 		}
 		return nil
-	})
+	}
 }
 
-func WithBindBaseURL(ptr *string) ClientOption {
-	return clientOptionFunc(func(c *Client) error {
+func WithBindBaseURL(ptr *string) Option {
+	return func(c *Client) error {
 		c.bindBaseURL = ptr
 		return nil
-	})
+	}
 }

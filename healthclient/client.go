@@ -2,12 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package healthcheck
+package healthclient
 
 import (
 	"context"
 	"crypto/tls"
 	"github.com/go-pogo/errors"
+	"github.com/go-pogo/healthcheck"
 	"net/http"
 	"net/url"
 	"path"
@@ -23,32 +24,35 @@ func (e InvalidStatusCode) Error() string {
 	return "invalid status code " + strconv.Itoa(e.Code)
 }
 
-type ClientConfig struct {
+type Config struct {
 	// BaseURL of form "[scheme://]ipaddr[:port]" or
 	// "[scheme://]hostname[:port]", both without trailing slash.
-	BaseURL string        `default:"localhost"`
-	Path    string        `default:"/healthy"`
-	Timeout time.Duration `default:"3s"`
+	BaseURL string        `env:"" default:"localhost"`
+	Path    string        `env:"" default:"/healthy"`
+	Timeout time.Duration `env:"" default:"3s"`
 }
 
 type Client struct {
-	ClientConfig
+	Config
 
 	httpClient  *http.Client
 	bindBaseURL *string
 }
 
-func NewClient(conf ClientConfig, opts ...ClientOption) (*Client, error) {
-	c := Client{ClientConfig: conf}
-
-	var err error
-	for _, opt := range opts {
-		err = errors.Append(err, opt.apply(&c))
-	}
-	return &c, err
+func New(conf Config, opts ...Option) (*Client, error) {
+	c := Client{Config: conf}
+	return &c, c.With(opts...)
 }
 
-func (c *Client) tlsConfig() *tls.Config {
+func (c *Client) With(opts ...Option) error {
+	var err error
+	for _, opt := range opts {
+		err = errors.Append(err, opt(c))
+	}
+	return err
+}
+
+func (c *Client) TLSConfig() *tls.Config {
 	if c.httpClient == nil || c.httpClient.Transport == nil {
 		return nil
 	}
@@ -69,7 +73,7 @@ func (c *Client) newRequest() (*http.Request, error) {
 		return nil, errors.WithStack(err)
 	}
 
-	if c.tlsConfig() != nil {
+	if c.TLSConfig() != nil {
 		u.Scheme = "https"
 	} else if u.Scheme == "" {
 		u.Scheme = "http"
@@ -92,8 +96,8 @@ func (c *Client) newRequest() (*http.Request, error) {
 	}, nil
 }
 
-func (c *Client) Request(ctx context.Context) (Status, error) {
-	timeout := c.ClientConfig.Timeout
+func (c *Client) Request(ctx context.Context) (healthcheck.Status, error) {
+	timeout := c.Config.Timeout
 	if timeout == 0 {
 		timeout = 3 * time.Second
 	}
@@ -105,7 +109,7 @@ func (c *Client) Request(ctx context.Context) (Status, error) {
 
 	req, err := c.newRequest()
 	if err != nil {
-		return StatusUnknown, errors.WithStack(err)
+		return healthcheck.StatusUnknown, errors.WithStack(err)
 	}
 
 	httpClient := c.httpClient
@@ -115,20 +119,20 @@ func (c *Client) Request(ctx context.Context) (Status, error) {
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return StatusUnknown, errors.WithStack(err)
+		return healthcheck.StatusUnknown, errors.WithStack(err)
 	}
 
 	_ = resp.Body.Close()
 
 	switch resp.StatusCode {
 	case http.StatusTooEarly:
-		return StatusUnknown, nil
+		return healthcheck.StatusUnknown, nil
 	case http.StatusOK, http.StatusNoContent:
-		return StatusHealthy, nil
+		return healthcheck.StatusHealthy, nil
 	case http.StatusServiceUnavailable:
-		return StatusUnhealthy, nil
+		return healthcheck.StatusUnhealthy, nil
 	default:
-		return StatusUnknown, errors.WithStack(&InvalidStatusCode{
+		return healthcheck.StatusUnknown, errors.WithStack(&InvalidStatusCode{
 			Code: resp.StatusCode,
 		})
 	}
