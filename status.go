@@ -69,7 +69,16 @@ func (s Status) GoString() string {
 
 // Exit causes the current program to exit with [Status] as the given status
 // code. The program terminates immediately; deferred functions are not run.
-func (s Status) Exit() { os.Exit(int(s)) }
+func (s Status) Exit() {
+	switch s {
+	case StatusHealthy:
+		os.Exit(0)
+	case StatusUnhealthy:
+		os.Exit(1)
+	default:
+		os.Exit(100)
+	}
+}
 
 // AtomicStatus is an atomic [Status]. The zero value is [StatusUnknown].
 type AtomicStatus struct {
