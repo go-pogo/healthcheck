@@ -53,7 +53,13 @@ type Checker struct {
 
 func New(opts ...Option) (*Checker, error) {
 	var c Checker
-	return &c, c.with(opts)
+	if err := c.with(opts); err != nil {
+		return nil, err
+	}
+	if c.log == nil {
+		c.log = NopLogger()
+	}
+	return &c, nil
 }
 
 func (h *Checker) With(opts ...Option) error {
@@ -65,6 +71,9 @@ func (h *Checker) With(opts ...Option) error {
 func (h *Checker) with(opts []Option) error {
 	var err error
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		err = errors.Append(err, opt(h))
 	}
 	return nil
@@ -168,12 +177,7 @@ func (h *Checker) CheckStatus(ctx context.Context) Status {
 }
 
 func (h *Checker) setStatus(stat Status) {
-	old := h.status.Swap(stat)
-	if old == stat {
-		return
-	}
-	if h.log != nil {
+	if old := h.status.Swap(stat); old != stat {
 		h.log.StatusChanged(stat, old)
 	}
-	// notify other listeners?
 }
