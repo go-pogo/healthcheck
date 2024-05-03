@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"github.com/go-pogo/easytls"
 	"github.com/go-pogo/healthcheck"
 	"github.com/stretchr/testify/assert"
 	"net/http/httptest"
@@ -32,11 +33,13 @@ func TestClient_Request(t *testing.T) {
 
 		client, err := New(Config{},
 			WithBindBaseURL(&srv.URL),
-			WithTLSConfig(&tls.Config{
-				RootCAs:    x509.NewCertPool(),
-				ClientAuth: tls.RequireAndVerifyClientCert, // mTLS
-			}),
-			WithTLSRootCAs(srv.TLS.Certificates[0]),
+			WithTLSConfig(
+				&tls.Config{
+					RootCAs:    x509.NewCertPool(),
+					ClientAuth: tls.RequireAndVerifyClientCert, // mTLS
+				},
+				easytls.WithTLSRootCAs(srv.TLS.Certificates[0]),
+			),
 		)
 		assert.NoError(t, err)
 

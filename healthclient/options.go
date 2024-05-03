@@ -6,7 +6,7 @@ package healthclient
 
 import (
 	"crypto/tls"
-	"crypto/x509"
+	"github.com/go-pogo/easytls"
 	"github.com/go-pogo/errors"
 	"net/http"
 )
@@ -22,7 +22,10 @@ func WithHTTPClient(httpClient *http.Client) Option {
 
 const panicNilTLSConfig = "healthcheck.WithTLSConfig: tls.Config should not be nil"
 
-func WithTLSConfig(conf *tls.Config) Option {
+// WithTLSConfig sets the provided [tls.Config] to the [Client]'s internal
+// [http.Transport.TLSClientConfig]. Any provided [TLSOption](s) will be
+// applied to this [tls.Config].
+func WithTLSConfig(conf *tls.Config, opts ...easytls.Option) Option {
 	return func(c *Client) error {
 		if conf == nil {
 			panic(panicNilTLSConfig)
@@ -30,48 +33,25 @@ func WithTLSConfig(conf *tls.Config) Option {
 
 		if c.httpClient == nil {
 			c.httpClient = &http.Client{
-				Transport: &http.Transport{TLSClientConfig: conf},
+				Transport: &http.Transport{
+					TLSClientConfig: conf,
+				},
 			}
-			return nil
-		}
-		if c.httpClient.Transport == nil {
-			c.httpClient.Transport = &http.Transport{TLSClientConfig: conf}
-			return nil
-		}
-		if t, ok := c.httpClient.Transport.(*http.Transport); ok {
+		} else if c.httpClient.Transport == nil {
+			c.httpClient.Transport = &http.Transport{
+				TLSClientConfig: conf,
+			}
+		} else if t, ok := c.httpClient.Transport.(*http.Transport); ok {
 			t.TLSClientConfig = conf
-			return nil
+		} else {
+			return errors.New("cannot add tls.Config to http.Client.Transport of unknown type")
 		}
 
-		return errors.New("cannot add tls.Config to http.Client.Transport of unknown type")
-	}
-}
-
-func WithTLSRootCAs(certs ...tls.Certificate) Option {
-	return func(c *Client) error {
-		if len(certs) == 0 {
-			return nil
+		var err error
+		for _, opt := range opts {
+			err = errors.Append(err, opt.ApplyTo(conf, easytls.TargetClient))
 		}
-
-		tlsConf := c.TLSConfig()
-		if tlsConf == nil {
-			tlsConf = new(tls.Config)
-			if err := WithTLSConfig(tlsConf)(c); err != nil {
-				return err
-			}
-		}
-		if tlsConf.RootCAs == nil {
-			tlsConf.RootCAs = x509.NewCertPool()
-		}
-
-		for _, cert := range certs {
-			x, err := x509.ParseCertificate(cert.Certificate[0])
-			if err != nil {
-				return err
-			}
-			tlsConf.RootCAs.AddCert(x)
-		}
-		return nil
+		return err
 	}
 }
 

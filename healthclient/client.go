@@ -47,6 +47,9 @@ func New(conf Config, opts ...Option) (*Client, error) {
 func (c *Client) With(opts ...Option) error {
 	var err error
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		err = errors.Append(err, opt(c))
 	}
 	return err
