@@ -12,32 +12,32 @@ import (
 )
 
 type Notifier interface {
-	StatusChanged(status, oldStatus Status)
+	HealthChanged(status, oldStatus Status)
 }
 
-// StatusChecker checks the status of a service.
-type StatusChecker interface {
-	CheckStatus(ctx context.Context) Status
+// HealthChecker checks the status of a service.
+type HealthChecker interface {
+	CheckHealth(ctx context.Context) Status
 }
 
-// StatusCheckerFunc checks the status of a service.
-type StatusCheckerFunc func(ctx context.Context) Status
+// HealthCheckerFunc checks the status of a service.
+type HealthCheckerFunc func(ctx context.Context) Status
 
-func (fn StatusCheckerFunc) CheckStatus(ctx context.Context) Status { return fn(ctx) }
+func (fn HealthCheckerFunc) CheckHealth(ctx context.Context) Status { return fn(ctx) }
 
-// Registerer registers [StatusChecker]s.
+// Registerer registers [HealthChecker]s.
 type Registerer interface {
-	Register(name string, check StatusChecker)
+	Register(name string, check HealthChecker)
 }
 
-// StatusCheckerRegisterer registers [StatusChecker]s to a [Registerer].
-type StatusCheckerRegisterer interface {
-	RegisterStatusCheckers(r Registerer)
+// HealthCheckerRegisterer registers [HealthChecker]s to a [Registerer].
+type HealthCheckerRegisterer interface {
+	RegisterHealthCheckers(r Registerer)
 }
 
 var (
 	_ Registerer    = (*Checker)(nil)
-	_ StatusChecker = (*Checker)(nil)
+	_ HealthChecker = (*Checker)(nil)
 )
 
 type Checker struct {
@@ -46,7 +46,7 @@ type Checker struct {
 
 	log      Logger
 	mut      sync.RWMutex
-	checks   map[string]StatusChecker
+	checks   map[string]HealthChecker
 	statuses map[string]Status
 	status   AtomicStatus
 }
@@ -90,18 +90,18 @@ func (h *Checker) Statuses() map[string]Status {
 	return stats
 }
 
-// Register a [StatusChecker] with the given name.
-func (h *Checker) Register(name string, check StatusChecker) {
+// Register a [HealthChecker] with the given name.
+func (h *Checker) Register(name string, check HealthChecker) {
 	h.mut.Lock()
 	if h.checks == nil {
-		h.checks = map[string]StatusChecker{name: check}
+		h.checks = map[string]HealthChecker{name: check}
 	} else {
 		h.checks[name] = check
 	}
 	h.mut.Unlock()
 }
 
-// Unregister the [StatusChecker] with the given name.
+// Unregister the [HealthChecker] with the given name.
 func (h *Checker) Unregister(name string) {
 	h.mut.Lock()
 	if h.checks != nil {
@@ -110,8 +110,8 @@ func (h *Checker) Unregister(name string) {
 	h.mut.Unlock()
 }
 
-// CheckStatus triggers a status check for all registered [StatusChecker]s.
-func (h *Checker) CheckStatus(ctx context.Context) Status {
+// CheckHealth triggers a health check for all registered [HealthChecker]s.
+func (h *Checker) CheckHealth(ctx context.Context) Status {
 	h.mut.RLock()
 	if len(h.checks) == 0 {
 		defer h.mut.RUnlock()
@@ -150,9 +150,9 @@ func (h *Checker) CheckStatus(ctx context.Context) Status {
 	}
 	if len(h.checks) == 1 || !h.Parallel {
 		for name, c := range h.checks {
-			stat := c.CheckStatus(ctx)
+			stat := c.CheckHealth(ctx)
 			h.statuses[name] = stat
-			h.log.StatusChecked(name, stat)
+			h.log.HealthChecked(name, stat)
 			updateStatus(stat)
 		}
 	} else {
@@ -160,11 +160,11 @@ func (h *Checker) CheckStatus(ctx context.Context) Status {
 		wg.Add(len(h.checks))
 
 		for name, c := range h.checks {
-			go func(name string, c StatusChecker) {
+			go func(name string, c HealthChecker) {
 				defer wg.Done()
-				stat := c.CheckStatus(ctx)
+				stat := c.CheckHealth(ctx)
 				h.statuses[name] = stat
-				h.log.StatusChecked(name, stat)
+				h.log.HealthChecked(name, stat)
 				updateStatus(stat)
 			}(name, c)
 		}
@@ -178,6 +178,6 @@ func (h *Checker) CheckStatus(ctx context.Context) Status {
 
 func (h *Checker) setStatus(stat Status) {
 	if old := h.status.Swap(stat); old != stat {
-		h.log.StatusChanged(stat, old)
+		h.log.HealthChanged(stat, old)
 	}
 }

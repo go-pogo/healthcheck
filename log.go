@@ -8,7 +8,7 @@ import "log"
 
 type Logger interface {
 	Notifier
-	StatusChecked(name string, stat Status)
+	HealthChecked(name string, stat Status)
 }
 
 // DefaultLogger returns a [Logger] that uses a [log.Logger] to log health
@@ -26,15 +26,15 @@ func NopLogger() Logger { return new(nopLogger) }
 
 type logger struct{ *log.Logger }
 
-func (l *logger) StatusChanged(status, oldStatus Status) {
-	l.Logger.Println("status changed from " + oldStatus.String() + " to " + status.String())
+func (l *logger) HealthChanged(status, oldStatus Status) {
+	l.Logger.Println("health changed from " + oldStatus.String() + " to " + status.String())
 }
 
-func (l *logger) StatusChecked(name string, stat Status) {
-	l.Logger.Printf("status for %s is %s\n", name, stat)
+func (l *logger) HealthChecked(name string, stat Status) {
+	l.Logger.Printf("health for %s is %s\n", name, stat)
 }
 
 type nopLogger struct{}
 
-func (*nopLogger) StatusChanged(_, _ Status)    {}
-func (*nopLogger) StatusChecked(string, Status) {}
+func (*nopLogger) HealthChanged(_, _ Status)    {}
+func (*nopLogger) HealthChecked(string, Status) {}

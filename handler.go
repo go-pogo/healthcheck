@@ -21,12 +21,12 @@ func SimpleHTTPHandler() http.Handler {
 }
 
 type handler struct {
-	check StatusChecker
+	check HealthChecker
 }
 
 const panicNilStatusChecker = "healthcheck.HTTPHandler: StatusChecker should not be nil"
 
-func HTTPHandler(c StatusChecker) http.Handler {
+func HTTPHandler(c HealthChecker) http.Handler {
 	if c == nil {
 		panic(panicNilStatusChecker)
 	}
@@ -34,7 +34,7 @@ func HTTPHandler(c StatusChecker) http.Handler {
 }
 
 func (h *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
-	stat := h.check.CheckStatus(req.Context())
+	stat := h.check.CheckHealth(req.Context())
 	wri.WriteHeader(stat.StatusCode())
 	_, _ = wri.Write([]byte(stat.String()))
 }
