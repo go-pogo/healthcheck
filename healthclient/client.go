@@ -120,7 +120,7 @@ func (c *Client) Request(ctx context.Context) (healthcheck.Status, error) {
 		httpClient = http.DefaultClient
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := httpClient.Do(req.WithContext(ctx))
 	if err != nil {
 		return healthcheck.StatusUnknown, errors.WithStack(err)
 	}
