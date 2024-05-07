@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/go-pogo/easytls v0.0.0-20240503185512-df01a3c3e3d3
-	github.com/go-pogo/errors v0.9.0
+	github.com/go-pogo/errors v0.10.0
 	github.com/stretchr/testify v1.9.0
 )
 
