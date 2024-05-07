@@ -100,3 +100,7 @@ func (x *AtomicStatus) Swap(new Status) (old Status) {
 func (x *AtomicStatus) CompareAndSwap(old, new Status) (swapped bool) {
 	return x.x.CompareAndSwap(int32(old), int32(new))
 }
+
+func (x *AtomicStatus) GoString() string {
+	return "healthcheck.AtomicStatus(" + strconv.Itoa(int(x.Load())) + ")"
+}
