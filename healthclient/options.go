@@ -47,11 +47,7 @@ func WithTLSConfig(conf *tls.Config, opts ...easytls.Option) Option {
 			return errors.New("cannot add tls.Config to http.Client.Transport of unknown type")
 		}
 
-		var err error
-		for _, opt := range opts {
-			err = errors.Append(err, opt.ApplyTo(conf, easytls.TargetClient))
-		}
-		return err
+		return easytls.Apply(conf, easytls.TargetClient, opts...)
 	}
 }
 
