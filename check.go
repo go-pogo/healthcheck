@@ -137,11 +137,16 @@ func (h *Checker) CheckHealth(ctx context.Context) Status {
 	updateStatus := func(stat Status) {
 		switch stat {
 		case StatusHealthy:
-			if status.Load() != StatusUnhealthy {
+			if status.Load() == StatusUnknown {
 				status.Store(stat)
 			}
 		case StatusUnhealthy:
 			status.Store(stat)
+
+		case StatusUnknown:
+			if status.Load() == StatusHealthy {
+				status.Store(StatusUnhealthy)
+			}
 		}
 	}
 
