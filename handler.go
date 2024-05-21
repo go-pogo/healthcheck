@@ -5,6 +5,7 @@
 package healthcheck
 
 import (
+	"encoding/json"
 	"net/http"
 )
 
@@ -20,21 +21,34 @@ func SimpleHTTPHandler() http.Handler {
 	})
 }
 
-type handler struct {
-	check HealthChecker
-}
+const panicNilHealthChecker = "healthcheck.HTTPHandler: HealthChecker should not be nil"
 
-const panicNilStatusChecker = "healthcheck.HTTPHandler: StatusChecker should not be nil"
-
-func HTTPHandler(c HealthChecker) http.Handler {
-	if c == nil {
-		panic(panicNilStatusChecker)
+func HTTPHandler(hc HealthChecker) http.Handler {
+	if hc == nil {
+		panic(panicNilHealthChecker)
 	}
-	return &handler{check: c}
-}
+	if checker, ok := hc.(*Checker); ok {
+		return http.HandlerFunc(func(wri http.ResponseWriter, req *http.Request) {
+			stat := checker.CheckHealth(req.Context())
+			wri.WriteHeader(stat.StatusCode())
 
-func (h *handler) ServeHTTP(wri http.ResponseWriter, req *http.Request) {
-	stat := h.check.CheckHealth(req.Context())
-	wri.WriteHeader(stat.StatusCode())
-	_, _ = wri.Write([]byte(stat.String()))
+			if stat == StatusHealthy {
+				_, _ = wri.Write(okBytes)
+			} else {
+				wri.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(wri).Encode(checker.Statuses())
+			}
+		})
+	}
+
+	return http.HandlerFunc(func(wri http.ResponseWriter, req *http.Request) {
+		stat := hc.CheckHealth(req.Context())
+		wri.WriteHeader(stat.StatusCode())
+
+		if stat == StatusHealthy {
+			_, _ = wri.Write(okBytes)
+		} else {
+			_, _ = wri.Write([]byte(stat.String()))
+		}
+	})
 }
