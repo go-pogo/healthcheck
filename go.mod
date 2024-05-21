@@ -3,7 +3,7 @@ module github.com/go-pogo/healthcheck
 go 1.20
 
 require (
-	github.com/go-pogo/easytls v0.0.0-20240512080543-edfb7ed3375a
+	github.com/go-pogo/easytls v0.0.0-20240519223850-49377406d2be
 	github.com/go-pogo/errors v0.10.0
 	github.com/stretchr/testify v1.9.0
 )
