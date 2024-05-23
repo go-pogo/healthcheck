@@ -25,12 +25,12 @@ type HealthCheckerFunc func(ctx context.Context) Status
 
 func (fn HealthCheckerFunc) CheckHealth(ctx context.Context) Status { return fn(ctx) }
 
-// Registerer registers [HealthChecker]s.
+// Registerer registers [HealthChecker](s).
 type Registerer interface {
 	Register(name string, check HealthChecker)
 }
 
-// HealthCheckerRegisterer registers [HealthChecker]s to a [Registerer].
+// HealthCheckerRegisterer registers [HealthChecker](s) to a [Registerer].
 type HealthCheckerRegisterer interface {
 	RegisterHealthCheckers(r Registerer)
 }
@@ -41,7 +41,8 @@ var (
 )
 
 type Checker struct {
-	Timeout  time.Duration
+	Timeout time.Duration
+	// Parallel indicates whether to run health checks in parallel.
 	Parallel bool
 
 	log      Logger
@@ -80,9 +81,11 @@ func (h *Checker) with(opts []Option) error {
 
 }
 
-// Status returns the current status of the health checker.
+// Status returns the current health [Status] based on the statuses of all
+// registered [HealthChecker](s).
 func (h *Checker) Status() Status { return h.status.Load() }
 
+// Statuses returns a map of the statuses of all registered [HealthChecker](s).
 func (h *Checker) Statuses() map[string]Status {
 	h.mut.RLock()
 	stats := h.statuses
@@ -114,7 +117,7 @@ func (h *Checker) Unregister(name string) {
 	h.mut.Unlock()
 }
 
-// CheckHealth triggers a health check for all registered [HealthChecker]s.
+// CheckHealth triggers a health check for all registered [HealthChecker](s).
 func (h *Checker) CheckHealth(ctx context.Context) Status {
 	h.mut.RLock()
 	if len(h.checks) == 0 {
