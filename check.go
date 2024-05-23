@@ -93,12 +93,16 @@ func (h *Checker) Statuses() map[string]Status {
 // Register a [HealthChecker] with the given name.
 func (h *Checker) Register(name string, check HealthChecker) {
 	h.mut.Lock()
+	h.register(name, check)
+	h.mut.Unlock()
+}
+
+func (h *Checker) register(name string, check HealthChecker) {
 	if h.checks == nil {
 		h.checks = map[string]HealthChecker{name: check}
 	} else {
 		h.checks[name] = check
 	}
-	h.mut.Unlock()
 }
 
 // Unregister the [HealthChecker] with the given name.

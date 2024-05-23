@@ -12,3 +12,10 @@ func WithLogger(l Logger) Option {
 		return nil
 	}
 }
+
+func WithHealthChecker(name string, check HealthChecker) Option {
+	return func(c *Checker) error {
+		c.register(name, check)
+		return nil
+	}
+}
