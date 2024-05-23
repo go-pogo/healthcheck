@@ -11,8 +11,11 @@ import (
 	"net/http"
 )
 
+const ErrUnknownTransportType errors.Msg = "cannot add tls.Config to http.Client.Transport of unknown type"
+
 type Option func(c *Client) error
 
+// WithHTTPClient allows to set a custom internal http.Client to the [Client].
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) error {
 		c.httpClient = httpClient
@@ -23,8 +26,8 @@ func WithHTTPClient(httpClient *http.Client) Option {
 const panicNilTLSConfig = "healthcheck.WithTLSConfig: tls.Config should not be nil"
 
 // WithTLSConfig sets the provided [tls.Config] to the [Client]'s internal
-// [http.Transport.TLSClientConfig]. Any provided [TLSOption](s) will be
-// applied to this [tls.Config].
+// [http.Transport.TLSClientConfig]. Any provided [easytls.Option](s) will be
+// applied to this [tls.Config] using [easytls.Apply].
 func WithTLSConfig(conf *tls.Config, opts ...easytls.Option) Option {
 	return func(c *Client) error {
 		if conf == nil {
@@ -44,16 +47,23 @@ func WithTLSConfig(conf *tls.Config, opts ...easytls.Option) Option {
 		} else if t, ok := c.httpClient.Transport.(*http.Transport); ok {
 			t.TLSClientConfig = conf
 		} else {
-			return errors.New("cannot add tls.Config to http.Client.Transport of unknown type")
+			return errors.New(ErrUnknownTransportType)
 		}
 
 		return easytls.Apply(conf, easytls.TargetClient, opts...)
 	}
 }
 
-func WithBindBaseURL(ptr *string) Option {
+func WithBindTargetBaseURL(ptr *string) Option {
 	return func(c *Client) error {
-		c.bindBaseURL = ptr
+		c.bindTargetBaseURL = ptr
+		return nil
+	}
+}
+
+func WithBindTargetPath(ptr *string) Option {
+	return func(c *Client) error {
+		c.bindTargetPath = ptr
 		return nil
 	}
 }

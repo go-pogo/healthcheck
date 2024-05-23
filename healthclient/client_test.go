@@ -20,7 +20,7 @@ func TestClient_Request(t *testing.T) {
 		srv := httptest.NewServer(healthcheck.SimpleHTTPHandler())
 		defer srv.Close()
 
-		client, err := New(Config{BaseURL: srv.URL})
+		client, err := New(Config{TargetBaseURL: srv.URL})
 		assert.NoError(t, err)
 
 		stat, err := client.Request(context.Background())
@@ -32,7 +32,7 @@ func TestClient_Request(t *testing.T) {
 		defer srv.Close()
 
 		client, err := New(Config{},
-			WithBindBaseURL(&srv.URL),
+			WithBindTargetBaseURL(&srv.URL),
 			WithTLSConfig(
 				&tls.Config{
 					RootCAs:    x509.NewCertPool(),

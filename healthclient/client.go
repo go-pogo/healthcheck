@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+// InvalidStatusCode contains the non-expected status code received from a
+// health check request.
 type InvalidStatusCode struct {
 	Code int
 }
@@ -24,19 +26,14 @@ func (e InvalidStatusCode) Error() string {
 	return "invalid status code " + strconv.Itoa(e.Code)
 }
 
-type Config struct {
-	// BaseURL of form "[scheme://]ipaddr[:port]" or
-	// "[scheme://]hostname[:port]", both without trailing slash.
-	BaseURL string        `env:"" default:"localhost"`
-	Path    string        `env:"" default:"/healthy"`
-	Timeout time.Duration `env:"" default:"3s"`
-}
-
+// Client is a simple http.Client which can be used to perform health checks
+// on a target (web)service.
 type Client struct {
 	Config
 
-	httpClient  *http.Client
-	bindBaseURL *string
+	httpClient        *http.Client
+	bindTargetBaseURL *string
+	bindTargetPath    *string
 }
 
 func New(conf Config, opts ...Option) (*Client, error) {
@@ -66,12 +63,7 @@ func (c *Client) TLSConfig() *tls.Config {
 }
 
 func (c *Client) newRequest() (*http.Request, error) {
-	base := c.BaseURL
-	if c.bindBaseURL != nil {
-		base = *c.bindBaseURL
-	}
-
-	u, err := url.ParseRequestURI(base)
+	u, err := url.ParseRequestURI(unbind(c.TargetBaseURL, c.bindTargetBaseURL))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -84,8 +76,11 @@ func (c *Client) newRequest() (*http.Request, error) {
 	if u.Host == "" {
 		u.Host = "localhost"
 	}
-	if u.Path != "" {
-		u.Path = path.Join(u.Path, c.Path)
+
+	if targetPath := unbind(c.TargetPath, c.bindTargetPath); u.Path != "" {
+		u.Path = path.Join(u.Path, targetPath)
+	} else {
+		u.Path = targetPath
 	}
 
 	return &http.Request{
@@ -100,7 +95,7 @@ func (c *Client) newRequest() (*http.Request, error) {
 }
 
 func (c *Client) Request(ctx context.Context) (healthcheck.Status, error) {
-	timeout := c.Config.Timeout
+	timeout := c.Config.RequestTimeout
 	if timeout == 0 {
 		timeout = 3 * time.Second
 	}
@@ -139,4 +134,11 @@ func (c *Client) Request(ctx context.Context) (healthcheck.Status, error) {
 			Code: resp.StatusCode,
 		})
 	}
+}
+
+func unbind(def string, ptr *string) string {
+	if ptr != nil {
+		return *ptr
+	}
+	return def
 }
