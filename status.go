@@ -6,7 +6,6 @@ package healthcheck
 
 import (
 	"net/http"
-	"os"
 	"strconv"
 	"sync/atomic"
 )
@@ -37,7 +36,20 @@ func StatusCode(c int) Status {
 	}
 }
 
-// StatusCode returns a http status code which represents [Status].
+// ExitCode returns an exit code which can be used with [os.Exit].
+func (s Status) ExitCode() int {
+	switch s {
+	case StatusHealthy:
+		return 0
+	case StatusUnhealthy:
+		return 1
+	default:
+		return 100
+	}
+}
+
+// StatusCode returns a http status code which represents [Status] in a
+// [http.Response].
 func (s Status) StatusCode() int {
 	switch s {
 	case StatusUnknown:
@@ -65,19 +77,6 @@ func (s Status) String() string {
 
 func (s Status) GoString() string {
 	return "healthcheck.Status(" + strconv.Itoa(int(s)) + ")"
-}
-
-// Exit causes the current program to exit with [Status] as the given status
-// code. The program terminates immediately; deferred functions are not run.
-func (s Status) Exit() {
-	switch s {
-	case StatusHealthy:
-		os.Exit(0)
-	case StatusUnhealthy:
-		os.Exit(1)
-	default:
-		os.Exit(100)
-	}
 }
 
 // AtomicStatus is an atomic [Status]. The zero value is [StatusUnknown].
