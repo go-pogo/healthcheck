@@ -4,12 +4,15 @@
 
 package healthclient
 
-import "time"
+import (
+	"time"
+)
 
 type Config struct {
-	// TargetBaseURL is the base url to the target server, of form
-	// "[scheme://]ipaddr|hostname[:port]", without trailing slash.
-	TargetBaseURL string `env:"" default:"localhost"`
+	// TargetHostname is the hostname or ip address of the target server.
+	TargetHostname string `env:"" default:"localhost"`
+	// TargetPort is the port of the target server.
+	TargetPort uint16 `env:"" default:"8080"`
 	// TargetPath is the path to the health check endpoint on the target server.
 	TargetPath string `env:"" default:"/healthy"`
 	// RequestTimeout is the maximum time to wait for a health check response.
@@ -17,7 +20,8 @@ type Config struct {
 }
 
 var defaultConfig = Config{
-	TargetBaseURL:  "localhost",
+	TargetHostname: "localhost",
+	TargetPort:     80,
 	TargetPath:     "/healthy",
 	RequestTimeout: 3 * time.Second,
 }

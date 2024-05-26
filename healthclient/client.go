@@ -9,10 +9,10 @@ import (
 	"crypto/tls"
 	"github.com/go-pogo/errors"
 	"github.com/go-pogo/healthcheck"
+	"net"
 	"net/http"
-	"net/url"
-	"path"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -26,12 +26,18 @@ func (e InvalidStatusCode) Error() string {
 	return "invalid status code " + strconv.Itoa(e.Code)
 }
 
+type httpClient interface {
+	Do(req *http.Request) (*http.Response, error)
+	client() *http.Client
+	transport() *http.Transport
+}
+
 // Client is a simple http.Client which can be used to perform health checks
 // on a target (web)service.
 type Client struct {
 	Config
 
-	httpClient        *http.Client
+	httpClient        httpClient
 	bindTargetBaseURL *string
 	bindTargetPath    *string
 }
@@ -53,45 +59,44 @@ func (c *Client) With(opts ...Option) error {
 }
 
 func (c *Client) TLSConfig() *tls.Config {
-	if c.httpClient == nil || c.httpClient.Transport == nil {
+	if c.httpClient == nil {
 		return nil
 	}
-	if t, ok := c.httpClient.Transport.(*http.Transport); ok {
+	if t := c.httpClient.transport(); t != nil {
 		return t.TLSClientConfig
 	}
 	return nil
 }
 
-func (c *Client) newRequest() (*http.Request, error) {
-	u, err := url.ParseRequestURI(unbind(c.TargetBaseURL, c.bindTargetBaseURL))
+func (c *Client) newRequest(ctx context.Context) (*http.Request, error) {
+	var host string
+	if c.bindTargetBaseURL != nil {
+		host = *c.bindTargetBaseURL
+	} else {
+		host = c.Config.TargetHostname
+		if host == "" {
+			host = "localhost"
+		}
+		if c.TargetPort != 0 {
+			host = net.JoinHostPort(host, strconv.FormatUint(uint64(c.TargetPort), 10))
+		}
+	}
+	if !strings.Contains(host, "://") {
+		//goland:noinspection HttpUrlsUsage
+		host = "http://" + host
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, host, nil)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	if c.TLSConfig() != nil {
-		u.Scheme = "https"
-	} else if u.Scheme == "" {
-		u.Scheme = "http"
-	}
-	if u.Host == "" {
-		u.Host = "localhost"
+		req.URL.Scheme = "https"
 	}
 
-	if targetPath := unbind(c.TargetPath, c.bindTargetPath); u.Path != "" {
-		u.Path = path.Join(u.Path, targetPath)
-	} else {
-		u.Path = targetPath
-	}
-
-	return &http.Request{
-		Method:     http.MethodGet,
-		URL:        u,
-		Proto:      "HTTP/1.1",
-		ProtoMajor: 1,
-		ProtoMinor: 1,
-		Header:     make(http.Header),
-		Host:       u.Host,
-	}, nil
+	req.URL.Path = unbind(c.TargetPath, c.bindTargetPath)
+	return req, nil
 }
 
 func (c *Client) Request(ctx context.Context) (healthcheck.Status, error) {
@@ -105,17 +110,16 @@ func (c *Client) Request(ctx context.Context) (healthcheck.Status, error) {
 		defer cancelFn()
 	}
 
-	req, err := c.newRequest()
+	req, err := c.newRequest(ctx)
 	if err != nil {
 		return healthcheck.StatusUnknown, errors.WithStack(err)
 	}
 
-	httpClient := c.httpClient
 	if c.httpClient == nil {
-		httpClient = http.DefaultClient
+		c.httpClient = &wrappedHTTPClient{http.DefaultClient}
 	}
 
-	resp, err := httpClient.Do(req.WithContext(ctx))
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return healthcheck.StatusUnknown, errors.WithStack(err)
 	}
@@ -141,4 +145,22 @@ func unbind(def string, ptr *string) string {
 		return *ptr
 	}
 	return def
+}
+
+var _ httpClient = (*wrappedHTTPClient)(nil)
+
+type wrappedHTTPClient struct {
+	*http.Client
+}
+
+func (c *wrappedHTTPClient) client() *http.Client { return c.Client }
+
+func (c *wrappedHTTPClient) transport() *http.Transport {
+	if c.Transport == nil {
+		return nil
+	}
+	if t, ok := c.Transport.(*http.Transport); ok {
+		return t
+	}
+	return nil
 }
