@@ -2,8 +2,10 @@
   <configuration default="false" name="test" type="GoTestRunConfiguration" factoryName="Go Test">
     <module name="healthcheck" />
     <working_directory value="$PROJECT_DIR$" />
+    <go_parameters value="-race" />
+    <root_directory value="$PROJECT_DIR$" />
     <kind value="DIRECTORY" />
-    <package value="github.com/go-pogo/healthcheck" />
+    <package value="./..." />
     <directory value="$PROJECT_DIR$" />
     <filePath value="$PROJECT_DIR$" />
     <framework value="gotest" />
