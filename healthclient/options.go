@@ -18,7 +18,7 @@ type Option func(c *Client) error
 // WithHTTPClient allows to set a custom internal http.Client to the [Client].
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) error {
-		c.httpClient = &wrappedHTTPClient{httpClient}
+		c.httpClient = httpClient
 		return nil
 	}
 }
@@ -35,19 +35,19 @@ func WithTLSConfig(conf *tls.Config, opts ...easytls.Option) Option {
 		}
 
 		if c.httpClient == nil {
-			c.httpClient = &wrappedHTTPClient{&http.Client{
+			c.httpClient = &http.Client{
 				Transport: &http.Transport{
 					TLSClientConfig: conf,
 				},
-			}}
-		} else if hc := c.httpClient.client(); hc != nil {
-			if hc.Transport == nil {
-				hc.Transport = &http.Transport{TLSClientConfig: conf}
-			} else if t, ok := hc.Transport.(*http.Transport); ok {
-				t.TLSClientConfig = conf
-			} else {
-				return errors.New(ErrUnknownTransportType)
 			}
+		} else if c.httpClient.Transport == nil {
+			c.httpClient.Transport = &http.Transport{
+				TLSClientConfig: conf,
+			}
+		} else if t, ok := c.httpClient.Transport.(*http.Transport); ok {
+			t.TLSClientConfig = conf
+		} else {
+			return errors.New(ErrUnknownTransportType)
 		}
 
 		return easytls.Apply(conf, easytls.TargetClient, opts...)

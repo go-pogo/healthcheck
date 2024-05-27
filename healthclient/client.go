@@ -11,9 +11,15 @@ import (
 	"github.com/go-pogo/healthcheck"
 	"net"
 	"net/http"
+	urlpkg "net/url"
 	"strconv"
 	"strings"
 	"time"
+)
+
+const (
+	ErrInvalidBaseURL errors.Msg = "invalid bound base url"
+	ErrRequestFailed  errors.Msg = "request failed"
 )
 
 // InvalidStatusCode contains the non-expected status code received from a
@@ -26,18 +32,12 @@ func (e InvalidStatusCode) Error() string {
 	return "invalid status code " + strconv.Itoa(e.Code)
 }
 
-type httpClient interface {
-	Do(req *http.Request) (*http.Response, error)
-	client() *http.Client
-	transport() *http.Transport
-}
-
 // Client is a simple http.Client which can be used to perform health checks
 // on a target (web)service.
 type Client struct {
 	Config
 
-	httpClient        httpClient
+	httpClient        *http.Client
 	bindTargetBaseURL *string
 	bindTargetPath    *string
 }
@@ -58,45 +58,54 @@ func (c *Client) With(opts ...Option) error {
 	return err
 }
 
-func (c *Client) TLSConfig() *tls.Config {
-	if c.httpClient == nil {
-		return nil
-	}
-	if t := c.httpClient.transport(); t != nil {
-		return t.TLSClientConfig
-	}
-	return nil
-}
+func (c *Client) TargetURL() (*urlpkg.URL, error) {
+	var url *urlpkg.URL
+	var err error
 
-func (c *Client) newRequest(ctx context.Context) (*http.Request, error) {
-	var host string
 	if c.bindTargetBaseURL != nil {
-		host = *c.bindTargetBaseURL
+		baseURL := *c.bindTargetBaseURL
+		if !strings.Contains(baseURL, "://") {
+			//goland:noinspection HttpUrlsUsage
+			baseURL = "http://" + baseURL
+		}
+
+		url, err = urlpkg.Parse(*c.bindTargetBaseURL)
+		if err != nil {
+			return nil, errors.Wrap(err, ErrInvalidBaseURL)
+		}
 	} else {
-		host = c.Config.TargetHostname
-		if host == "" {
-			host = "localhost"
+		url = &urlpkg.URL{
+			Scheme: "http",
+			Host:   c.Config.TargetHostname,
+		}
+		if url.Host == "" {
+			url.Host = "localhost"
 		}
 		if c.TargetPort != 0 {
-			host = net.JoinHostPort(host, strconv.FormatUint(uint64(c.TargetPort), 10))
+			url.Host = net.JoinHostPort(url.Host, strconv.FormatUint(uint64(c.TargetPort), 10))
 		}
-	}
-	if !strings.Contains(host, "://") {
-		//goland:noinspection HttpUrlsUsage
-		host = "http://" + host
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, host, nil)
-	if err != nil {
-		return nil, errors.WithStack(err)
 	}
 
 	if c.TLSConfig() != nil {
-		req.URL.Scheme = "https"
+		url.Scheme = "https"
+	}
+	if c.bindTargetPath != nil {
+		url.Path = *c.bindTargetPath
+	} else {
+		url.Path = c.TargetPath
 	}
 
-	req.URL.Path = unbind(c.TargetPath, c.bindTargetPath)
-	return req, nil
+	return url, nil
+}
+
+func (c *Client) TLSConfig() *tls.Config {
+	if c.httpClient == nil || c.httpClient.Transport == nil {
+		return nil
+	}
+	if t, ok := c.httpClient.Transport.(*http.Transport); ok {
+		return t.TLSClientConfig
+	}
+	return nil
 }
 
 func (c *Client) Request(ctx context.Context) (healthcheck.Status, error) {
@@ -110,18 +119,28 @@ func (c *Client) Request(ctx context.Context) (healthcheck.Status, error) {
 		defer cancelFn()
 	}
 
-	req, err := c.newRequest(ctx)
+	url, err := c.TargetURL()
 	if err != nil {
-		return healthcheck.StatusUnknown, errors.WithStack(err)
+		return healthcheck.StatusUnknown, errors.Wrap(err, ErrRequestFailed)
+	}
+
+	req := &http.Request{
+		Method:     http.MethodGet,
+		URL:        url,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Header:     make(http.Header),
+		Host:       url.Host,
 	}
 
 	if c.httpClient == nil {
-		c.httpClient = &wrappedHTTPClient{http.DefaultClient}
+		c.httpClient = http.DefaultClient
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req.WithContext(ctx))
 	if err != nil {
-		return healthcheck.StatusUnknown, errors.WithStack(err)
+		return healthcheck.StatusUnknown, errors.Wrap(err, ErrRequestFailed)
 	}
 
 	_ = resp.Body.Close()
@@ -138,29 +157,4 @@ func (c *Client) Request(ctx context.Context) (healthcheck.Status, error) {
 			Code: resp.StatusCode,
 		})
 	}
-}
-
-func unbind(def string, ptr *string) string {
-	if ptr != nil {
-		return *ptr
-	}
-	return def
-}
-
-var _ httpClient = (*wrappedHTTPClient)(nil)
-
-type wrappedHTTPClient struct {
-	*http.Client
-}
-
-func (c *wrappedHTTPClient) client() *http.Client { return c.Client }
-
-func (c *wrappedHTTPClient) transport() *http.Transport {
-	if c.Transport == nil {
-		return nil
-	}
-	if t, ok := c.Transport.(*http.Transport); ok {
-		return t
-	}
-	return nil
 }

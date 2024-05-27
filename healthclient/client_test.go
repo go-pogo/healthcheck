@@ -11,12 +11,56 @@ import (
 	"github.com/go-pogo/easytls"
 	"github.com/go-pogo/healthcheck"
 	"github.com/stretchr/testify/assert"
-	"io"
-	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
 )
+
+func TestClient_TargetURL(t *testing.T) {
+	tests := map[string]struct {
+		conf    Config
+		opts    []Option
+		wantURL url.URL
+		wantErr error
+	}{
+		"target hostname": {
+			conf: Config{TargetHostname: "testerdetest"},
+			wantURL: url.URL{
+				Scheme: "http",
+				Host:   "testerdetest",
+			},
+		},
+		"target port": {
+			conf: Config{TargetPort: 1234},
+			wantURL: url.URL{
+				Scheme: "http",
+				Host:   "localhost:1234",
+			},
+		},
+		"target port with tls": {
+			conf: Config{TargetPort: 1234},
+			opts: []Option{WithTLSConfig(&tls.Config{})},
+			wantURL: url.URL{
+				Scheme: "https",
+				Host:   "localhost:1234",
+			},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			client, err := New(test.conf, test.opts...)
+			assert.NoError(t, err)
+
+			haveURL, haveErr := client.TargetURL()
+			assert.Equal(t, test.wantURL, *haveURL)
+			if test.wantErr == nil {
+				assert.NoError(t, haveErr)
+			} else {
+				assert.ErrorIs(t, haveErr, test.wantErr)
+			}
+		})
+	}
+}
 
 func TestClient_Request(t *testing.T) {
 	t.Run("without tls", func(t *testing.T) {
@@ -50,66 +94,4 @@ func TestClient_Request(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, healthcheck.StatusHealthy, stat)
 	})
-}
-
-func TestNew(t *testing.T) {
-	tests := map[string]struct {
-		conf    Config
-		opts    []Option
-		wantURL url.URL
-	}{
-		"target hostname": {
-			conf: Config{TargetHostname: "testerdetest"},
-			wantURL: url.URL{
-				Scheme: "http",
-				Host:   "testerdetest",
-			},
-		},
-		"target port": {
-			conf: Config{TargetPort: 1234},
-			wantURL: url.URL{
-				Scheme: "http",
-				Host:   "localhost:1234",
-			},
-		},
-		"target port with tls": {
-			conf: Config{TargetPort: 1234},
-			opts: []Option{WithTLSConfig(&tls.Config{})},
-			wantURL: url.URL{
-				Scheme: "https",
-				Host:   "localhost:1234",
-			},
-		},
-	}
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			client, err := New(test.conf, test.opts...)
-			assert.NoError(t, err)
-			// dummy request to trigger a possible default httpClient creation
-			_, _ = client.Request(context.Background())
-
-			have := wrapTestClient(client)
-			_, _ = client.Request(context.Background())
-
-			assert.Equal(t, test.wantURL, *have.req.URL)
-		})
-	}
-}
-
-var _ httpClient = (*testClient)(nil)
-
-type testClient struct {
-	httpClient
-	req *http.Request
-}
-
-func wrapTestClient(c *Client) *testClient {
-	tc := &testClient{httpClient: c.httpClient}
-	c.httpClient = tc
-	return tc
-}
-
-func (t *testClient) Do(req *http.Request) (*http.Response, error) {
-	t.req = req
-	return &http.Response{Body: io.NopCloser(nil)}, nil
 }
