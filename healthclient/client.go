@@ -69,7 +69,7 @@ func (c *Client) TargetURL() (*urlpkg.URL, error) {
 			baseURL = "http://" + baseURL
 		}
 
-		url, err = urlpkg.Parse(*c.bindTargetBaseURL)
+		url, err = urlpkg.Parse(baseURL)
 		if err != nil {
 			return nil, errors.Wrap(err, ErrInvalidBaseURL)
 		}
