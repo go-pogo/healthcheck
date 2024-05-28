@@ -14,6 +14,10 @@ func WithLogger(l Logger) Option {
 }
 
 func WithHealthChecker(name string, check HealthChecker) Option {
+	if check == nil {
+		panic(panicNilHealthChecker)
+	}
+
 	return func(c *Checker) error {
 		c.register(name, check)
 		return nil
