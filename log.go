@@ -7,8 +7,7 @@ package healthcheck
 import "log"
 
 type Logger interface {
-	Notifier
-	HealthChecked(name string, stat Status)
+	LogHealthChanged(newStatus, oldStatus Status, statuses map[string]Status)
 }
 
 // DefaultLogger returns a [Logger] that uses a [log.Logger] to log health
@@ -26,15 +25,17 @@ func NopLogger() Logger { return new(nopLogger) }
 
 type logger struct{ *log.Logger }
 
-func (l *logger) HealthChanged(status, oldStatus Status) {
-	l.Logger.Println("health changed from " + oldStatus.String() + " to " + status.String())
-}
+func (l *logger) LogHealthChanged(status, oldStatus Status, statuses map[string]Status) {
+	l.Logger.Printf("health changed from %s to %s\n", oldStatus, status)
+	if statuses == nil {
+		return
+	}
 
-func (l *logger) HealthChecked(name string, stat Status) {
-	l.Logger.Printf("health for %s is %s\n", name, stat)
+	for name, stat := range statuses {
+		l.Logger.Printf("health for %s is %s\n", name, stat)
+	}
 }
 
 type nopLogger struct{}
 
-func (*nopLogger) HealthChanged(_, _ Status)    {}
-func (*nopLogger) HealthChecked(string, Status) {}
+func (*nopLogger) LogHealthChanged(_, _ Status, _ map[string]Status) {}

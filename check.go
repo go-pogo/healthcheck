@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-type Notifier interface {
-	HealthChanged(status, oldStatus Status)
-}
-
 // HealthChecker checks the status of a service.
 type HealthChecker interface {
 	CheckHealth(ctx context.Context) Status
@@ -88,13 +84,26 @@ func (h *Checker) Status() Status { return h.status.Load() }
 // Statuses returns a map of the statuses of all registered [HealthChecker](s).
 func (h *Checker) Statuses() map[string]Status {
 	h.mut.RLock()
-	stats := h.statuses
-	h.mut.RUnlock()
+	defer h.mut.RUnlock()
+	return h.copyStatuses()
+}
+
+func (h *Checker) copyStatuses() map[string]Status {
+	stats := make(map[string]Status, len(h.statuses))
+	for k, v := range h.statuses {
+		stats[k] = v
+	}
 	return stats
 }
 
+const panicNilHealthChecker = "healthcheck: HealthChecker should not be nil"
+
 // Register a [HealthChecker] with the given name.
 func (h *Checker) Register(name string, check HealthChecker) {
+	if check == nil {
+		panic(panicNilHealthChecker)
+	}
+
 	h.mut.Lock()
 	h.register(name, check)
 	h.mut.Unlock()
@@ -190,6 +199,6 @@ func (h *Checker) CheckHealth(ctx context.Context) Status {
 
 func (h *Checker) setStatus(stat Status) {
 	if old := h.status.Swap(stat); old != stat {
-		h.log.HealthChanged(stat, old)
+		h.log.LogHealthChanged(stat, old, h.copyStatuses())
 	}
 }
