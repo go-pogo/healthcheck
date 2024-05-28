@@ -36,18 +36,6 @@ func StatusCode(c int) Status {
 	}
 }
 
-// ExitCode returns an exit code which can be used with [os.Exit].
-func (s Status) ExitCode() int {
-	switch s {
-	case StatusHealthy:
-		return 0
-	case StatusUnhealthy:
-		return 1
-	default:
-		return 100
-	}
-}
-
 // StatusCode returns a http status code which represents [Status] in a
 // [http.Response].
 func (s Status) StatusCode() int {
@@ -60,6 +48,18 @@ func (s Status) StatusCode() int {
 		return http.StatusServiceUnavailable // 503
 	default:
 		return http.StatusInternalServerError // 500
+	}
+}
+
+// ExitCode returns an exit code which can be used with [os.Exit].
+func (s Status) ExitCode() int {
+	switch s {
+	case StatusHealthy:
+		return 0
+	case StatusUnknown:
+		return 100
+	default:
+		return int(s)
 	}
 }
 
@@ -79,9 +79,33 @@ func (s Status) GoString() string {
 	return "healthcheck.Status(" + strconv.Itoa(int(s)) + ")"
 }
 
+// Combine [Status] a and b and determine the combined status of both on below
+// rules:
+//   - when a or b is [StatusUnhealthy], the result is [StatusUnhealthy];
+//   - when a is [StatusHealthy] and b is not, the result is [StatusUnhealthy];
+//   - when a is [StatusUnknown], the result is b;
+//   - when b is [StatusHealthy], the result is [StatusHealthy];
+//   - all other cases result in [StatusUnknown]
+func Combine(a, b Status) Status {
+	if a == StatusUnhealthy || b == StatusUnhealthy || (a == StatusHealthy && b != StatusHealthy) {
+		return StatusUnhealthy
+	}
+	if a == StatusUnknown || b == StatusHealthy {
+		return b
+	}
+
+	return StatusUnknown
+}
+
 // AtomicStatus is an atomic [Status]. The zero value is [StatusUnknown].
 type AtomicStatus struct {
 	x atomic.Int32
+}
+
+func (x *AtomicStatus) Combine(stat Status) Status {
+	stat = Combine(x.Load(), stat)
+	x.Store(stat)
+	return stat
 }
 
 // Load atomically loads and returns the [Status] stored in x.
