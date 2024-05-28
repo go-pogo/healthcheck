@@ -49,9 +49,12 @@ type Checker struct {
 }
 
 func New(opts ...Option) (*Checker, error) {
-	var c Checker
+	c := Checker{Timeout: 3 * time.Second}
 	if err := c.with(opts); err != nil {
 		return nil, err
+	}
+	if len(c.checks) > 2 {
+		c.Parallel = true
 	}
 	if c.log == nil {
 		c.log = NopLogger()
@@ -139,62 +142,46 @@ func (h *Checker) CheckHealth(ctx context.Context) Status {
 	h.mut.Lock()
 	defer h.mut.Unlock()
 
-	timeout := h.Timeout
-	if timeout == 0 {
-		timeout = 3 * time.Second
-	}
-	if t, ok := ctx.Deadline(); !ok || timeout < time.Until(t) {
-		var cancelFn context.CancelFunc
-		ctx, cancelFn = context.WithTimeout(ctx, timeout)
-		defer cancelFn()
-	}
-
-	var status AtomicStatus
-	updateStatus := func(stat Status) {
-		switch stat {
-		case StatusHealthy:
-			if status.Load() == StatusUnknown {
-				status.Store(stat)
-			}
-		case StatusUnhealthy:
-			status.Store(stat)
-
-		case StatusUnknown:
-			if status.Load() == StatusHealthy {
-				status.Store(StatusUnhealthy)
-			}
-		}
-	}
-
 	if h.statuses == nil {
 		h.statuses = make(map[string]Status, len(h.checks))
 	}
+
+	if h.Timeout > 0 {
+		// add a timeout to the context if none is set
+		if t, ok := ctx.Deadline(); !ok || h.Timeout < time.Until(t) {
+			var cancelFn context.CancelFunc
+			ctx, cancelFn = context.WithTimeout(ctx, h.Timeout)
+			defer cancelFn()
+		}
+	}
+
+	// check health status for each registered service
 	if len(h.checks) == 1 || !h.Parallel {
 		for name, c := range h.checks {
-			stat := c.CheckHealth(ctx)
-			h.statuses[name] = stat
-			h.log.HealthChecked(name, stat)
-			updateStatus(stat)
+			h.statuses[name] = c.CheckHealth(ctx)
 		}
 	} else {
 		var wg sync.WaitGroup
 		wg.Add(len(h.checks))
-
 		for name, c := range h.checks {
 			go func(name string, c HealthChecker) {
 				defer wg.Done()
-				stat := c.CheckHealth(ctx)
-				h.statuses[name] = stat
-				h.log.HealthChecked(name, stat)
-				updateStatus(stat)
+				h.statuses[name] = c.CheckHealth(ctx)
 			}(name, c)
 		}
 		wg.Wait()
 	}
 
-	stat := status.Load()
-	h.setStatus(stat)
-	return stat
+	result := StatusUnknown
+	for _, stat := range h.statuses {
+		result = Combine(result, stat)
+		if result == StatusUnhealthy {
+			break
+		}
+	}
+
+	h.setStatus(result)
+	return result
 }
 
 func (h *Checker) setStatus(stat Status) {
