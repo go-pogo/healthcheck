@@ -5,9 +5,10 @@
 package healthcheck
 
 import (
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStatusCode(t *testing.T) {

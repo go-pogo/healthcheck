@@ -6,9 +6,10 @@ package healthclient
 
 import (
 	"crypto/tls"
+	"net/http"
+
 	"github.com/go-pogo/easytls"
 	"github.com/go-pogo/errors"
-	"net/http"
 )
 
 const ErrUnknownTransportType errors.Msg = "cannot add tls.Config to http.Client.Transport of unknown type"

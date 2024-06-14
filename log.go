@@ -4,7 +4,9 @@
 
 package healthcheck
 
-import "log"
+import (
+	"log"
+)
 
 type Logger interface {
 	LogHealthChanged(newStatus, oldStatus Status, statuses map[string]Status)

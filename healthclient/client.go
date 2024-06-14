@@ -7,14 +7,15 @@ package healthclient
 import (
 	"context"
 	"crypto/tls"
-	"github.com/go-pogo/errors"
-	"github.com/go-pogo/healthcheck"
 	"net"
 	"net/http"
 	urlpkg "net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-pogo/errors"
+	"github.com/go-pogo/healthcheck"
 )
 
 const (

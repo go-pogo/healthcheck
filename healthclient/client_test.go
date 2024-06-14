@@ -8,12 +8,13 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"github.com/go-pogo/easytls"
-	"github.com/go-pogo/healthcheck"
-	"github.com/stretchr/testify/assert"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/go-pogo/easytls"
+	"github.com/go-pogo/healthcheck"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestClient_TargetURL(t *testing.T) {

@@ -6,9 +6,10 @@ package healthcheck
 
 import (
 	"context"
-	"github.com/go-pogo/errors"
 	"sync"
 	"time"
+
+	"github.com/go-pogo/errors"
 )
 
 // HealthChecker checks the status of a service.
