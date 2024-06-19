@@ -13,9 +13,9 @@ import (
 
 func TestWithLogger(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
-		c := Checker{log: DefaultLogger(nil)}
-		assert.NoError(t, WithLogger(nil)(&c))
-		assert.Nil(t, c.log)
+		assert.PanicsWithValue(t, panicNilLogger, func() {
+			_ = WithLogger(nil)(nil)
+		})
 	})
 
 	t.Run("non-nil", func(t *testing.T) {

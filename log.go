@@ -12,15 +12,20 @@ type Logger interface {
 	LogHealthChanged(newStatus, oldStatus Status, statuses map[string]Status)
 }
 
-// DefaultLogger returns a [Logger] that uses a [log.Logger] to log health
-// status events. It defaults to [log.Default] if the provided [log.Logger] l
-// is nil.
-func DefaultLogger(l *log.Logger) Logger {
+const panicNewNilLogger = "healthcheck.NewLogger: log.Logger should not be nil"
+
+// NewLogger returns a [Logger] that uses a [log.Logger] to log health
+// status events.
+func NewLogger(l *log.Logger) Logger {
 	if l == nil {
-		l = log.Default()
+		panic(panicNewNilLogger)
 	}
 	return &logger{l}
 }
+
+// DefaultLogger returns a [Logger] that uses [log.Default] to log health
+// status events.
+func DefaultLogger() Logger { return &logger{log.Default()} }
 
 // NopLogger returns a [Logger] that does nothing.
 func NopLogger() Logger { return new(nopLogger) }

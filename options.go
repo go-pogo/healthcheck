@@ -6,12 +6,20 @@ package healthcheck
 
 type Option func(c *Checker) error
 
-func WithLogger(l Logger) Option {
+const panicNilLogger = "healthcheck.WithLogger: Logger should not be nil"
+
+func WithLogger(log Logger) Option {
 	return func(c *Checker) error {
-		c.log = l
+		if log == nil {
+			panic(panicNilLogger)
+		}
+
+		c.log = log
 		return nil
 	}
 }
+
+func WithDefaultLogger() Option { return WithLogger(DefaultLogger()) }
 
 func WithHealthChecker(name string, check HealthChecker) Option {
 	if check == nil {
