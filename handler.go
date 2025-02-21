@@ -38,7 +38,7 @@ func HTTPHandler(hc HealthChecker) http.Handler {
 				_, _ = wri.Write(okBytes)
 			} else {
 				wri.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(wri).Encode(checker.Statuses())
+				_ = json.NewEncoder(wri).Encode(checker.Details())
 			}
 		})
 	}

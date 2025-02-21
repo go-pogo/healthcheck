@@ -42,11 +42,11 @@ type Checker struct {
 	// Parallel indicates whether to run health checks in parallel.
 	Parallel bool
 
-	log      Logger
-	mut      sync.RWMutex
-	checks   map[string]HealthChecker
-	statuses map[string]Status
-	status   AtomicStatus
+	log     Logger
+	mut     sync.RWMutex
+	checks  map[string]HealthChecker
+	details map[string]Status
+	status  AtomicStatus
 }
 
 func New(opts ...Option) (*Checker, error) {
@@ -85,16 +85,19 @@ func (h *Checker) with(opts []Option) error {
 // registered [HealthChecker](s).
 func (h *Checker) Status() Status { return h.status.Load() }
 
-// Statuses returns a map of the statuses of all registered [HealthChecker](s).
-func (h *Checker) Statuses() map[string]Status {
+// Deprecated: Statuses is an alias of Details.
+func (h *Checker) Statuses() map[string]Status { return h.Details() }
+
+// Details returns a map of the statuses of all registered [HealthChecker](s).
+func (h *Checker) Details() map[string]Status {
 	h.mut.RLock()
 	defer h.mut.RUnlock()
-	return h.copyStatuses()
+	return h.copyDetails()
 }
 
-func (h *Checker) copyStatuses() map[string]Status {
-	stats := make(map[string]Status, len(h.statuses))
-	for k, v := range h.statuses {
+func (h *Checker) copyDetails() map[string]Status {
+	stats := make(map[string]Status, len(h.details))
+	for k, v := range h.details {
 		stats[k] = v
 	}
 	return stats
@@ -143,8 +146,8 @@ func (h *Checker) CheckHealth(ctx context.Context) Status {
 	h.mut.Lock()
 	defer h.mut.Unlock()
 
-	if h.statuses == nil {
-		h.statuses = make(map[string]Status, len(h.checks))
+	if h.details == nil {
+		h.details = make(map[string]Status, len(h.checks))
 	}
 
 	if h.Timeout > 0 {
@@ -159,7 +162,7 @@ func (h *Checker) CheckHealth(ctx context.Context) Status {
 	// check health status for each registered service
 	if len(h.checks) == 1 || !h.Parallel {
 		for name, c := range h.checks {
-			h.statuses[name] = c.CheckHealth(ctx)
+			h.details[name] = c.CheckHealth(ctx)
 		}
 	} else {
 		var wg sync.WaitGroup
@@ -167,14 +170,14 @@ func (h *Checker) CheckHealth(ctx context.Context) Status {
 		for name, c := range h.checks {
 			go func(name string, c HealthChecker) {
 				defer wg.Done()
-				h.statuses[name] = c.CheckHealth(ctx)
+				h.details[name] = c.CheckHealth(ctx)
 			}(name, c)
 		}
 		wg.Wait()
 	}
 
 	result := StatusUnknown
-	for _, stat := range h.statuses {
+	for _, stat := range h.details {
 		result = Combine(result, stat)
 		if result == StatusUnhealthy {
 			break
@@ -187,6 +190,6 @@ func (h *Checker) CheckHealth(ctx context.Context) Status {
 
 func (h *Checker) setStatus(stat Status) {
 	if old := h.status.Swap(stat); old != stat {
-		h.log.LogHealthChanged(stat, old, h.copyStatuses())
+		h.log.LogHealthChanged(stat, old, h.copyDetails())
 	}
 }
