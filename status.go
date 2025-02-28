@@ -79,8 +79,8 @@ func (s Status) GoString() string {
 	return "healthcheck.Status(" + strconv.Itoa(int(s)) + ")"
 }
 
-// Combine [Status] a and b and determine the combined status of both on below
-// rules:
+// Combine [Status] a and b and determine the combined status of both based on
+// these rules:
 //   - when a or b is [StatusUnhealthy], the result is [StatusUnhealthy];
 //   - when a is [StatusHealthy] and b is not, the result is [StatusUnhealthy];
 //   - when a is [StatusUnknown], the result is b;
