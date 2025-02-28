@@ -19,6 +19,8 @@ import (
 )
 
 const (
+	ErrCreateClient   errors.Msg = "failed to create healthcheck client"
+	ErrApplyOptions   errors.Msg = "error while applying option(s)"
 	ErrInvalidBaseURL errors.Msg = "invalid bound base url"
 	ErrRequestFailed  errors.Msg = "request failed"
 )
@@ -33,11 +35,22 @@ func (e InvalidStatusCode) Error() string {
 	return "invalid status code " + strconv.Itoa(e.Code)
 }
 
-// Client is a simple http.Client which can be used to perform health checks
-// on a target (web)service.
+// Request creates a new [Client] and performs a request based on the provided
+// [Config] and [Option(s)].
+func Request(ctx context.Context, conf Config, opts ...Option) (healthcheck.Status, error) {
+	client, err := New(conf, opts...)
+	if err != nil {
+		return healthcheck.StatusUnknown, errors.Wrap(err, ErrCreateClient)
+	}
+	return client.Request(ctx)
+}
+
+// Client is a wrapper around [http.Client] which can be used to perform health
+// checks on a target (web)service.
 type Client struct {
 	Config
 
+	log               Logger
 	httpClient        *http.Client
 	bindTargetBaseURL *string
 	bindTargetPath    *string
@@ -56,7 +69,7 @@ func (c *Client) With(opts ...Option) error {
 		}
 		err = errors.Append(err, opt(c))
 	}
-	return err
+	return errors.Wrap(err, ErrApplyOptions)
 }
 
 func (c *Client) TargetURL() (*urlpkg.URL, error) {
@@ -109,7 +122,25 @@ func (c *Client) TLSConfig() *tls.Config {
 	return nil
 }
 
-func (c *Client) Request(ctx context.Context) (healthcheck.Status, error) {
+// Request performs a [http.Request] and determines the service's
+// [healthcheck.Status] on the received http status codes. The status is
+// [healthcheck.StatusHealthy] when the http status is either [http.StatusOK]
+// or [http.StatusNoContent]. The status is [healthcheck.StatusUnhealthy] when
+// the http status is [http.StatusServiceUnavailable].
+// Any error during the request, or any other received http status, results in
+// a status of [healthcheck.StatusUnknown].
+func (c *Client) Request(ctx context.Context) (stat healthcheck.Status, err error) {
+	if c.log != nil {
+		defer func() {
+			// todo: test if this works
+			if err != nil {
+				c.log.LogHealthCheckFailed(stat, err)
+			} else {
+				c.log.LogHealthChecked(stat)
+			}
+		}()
+	}
+
 	timeout := c.Config.RequestTimeout
 	if timeout == 0 {
 		timeout = 3 * time.Second

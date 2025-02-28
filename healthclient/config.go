@@ -6,6 +6,8 @@ package healthclient
 
 import (
 	"time"
+
+	"github.com/go-pogo/healthcheck"
 )
 
 type Config struct {
@@ -19,11 +21,11 @@ type Config struct {
 	RequestTimeout time.Duration `env:"" default:"3s"`
 }
 
-var defaultConfig = Config{
-	TargetHostname: "localhost",
-	TargetPort:     80,
-	TargetPath:     "/healthy",
-	RequestTimeout: 3 * time.Second,
+func DefaultConfig() Config {
+	return Config{
+		TargetHostname: "localhost",
+		TargetPort:     80,
+		TargetPath:     healthcheck.PathPattern,
+		RequestTimeout: 3 * time.Second,
+	}
 }
-
-func DefaultConfig() Config { return defaultConfig }

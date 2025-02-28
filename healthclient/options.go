@@ -16,12 +16,33 @@ const ErrUnknownTransportType errors.Msg = "cannot add tls.Config to http.Client
 
 type Option func(c *Client) error
 
+const panicNilLogger = "healthcheck.WithLogger: Logger should not be nil"
+
+func WithLogger(log Logger) Option {
+	return func(c *Client) error {
+		if log == nil {
+			panic(panicNilLogger)
+		}
+
+		c.log = log
+		return nil
+	}
+}
+
+func WithDefaultLogger() Option { return WithLogger(DefaultLogger()) }
+
 // WithHTTPClient allows to set a custom internal http.Client to the [Client].
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) error {
 		c.httpClient = httpClient
 		return nil
 	}
+}
+
+// WithTLS uses [WithTLSConfig] to apply tls to a default TLS config from
+// [easytls.DefaultTLSConfig].
+func WithTLS(tls easytls.Config) Option {
+	return WithTLSConfig(easytls.DefaultTLSConfig(), tls)
 }
 
 const panicNilTLSConfig = "healthcheck.WithTLSConfig: tls.Config should not be nil"
