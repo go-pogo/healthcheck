@@ -29,15 +29,16 @@ func HTTPHandler(hc HealthChecker) http.Handler {
 	if hc == nil {
 		panic(panicNilHealthChecker)
 	}
+
 	if checker, ok := hc.(*Checker); ok {
 		return http.HandlerFunc(func(wri http.ResponseWriter, req *http.Request) {
 			stat := checker.CheckHealth(req.Context())
-			wri.WriteHeader(stat.StatusCode())
-
 			if stat == StatusHealthy {
+				wri.WriteHeader(stat.StatusCode())
 				_, _ = wri.Write(okBytes)
 			} else {
 				wri.Header().Set("Content-Type", "application/json")
+				wri.WriteHeader(stat.StatusCode())
 				_ = json.NewEncoder(wri).Encode(checker.Details())
 			}
 		})
