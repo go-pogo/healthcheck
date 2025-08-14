@@ -90,7 +90,7 @@ func (c *Client) TargetURL() (*urlpkg.URL, error) {
 	} else {
 		url = &urlpkg.URL{
 			Scheme: "http",
-			Host:   c.Config.TargetHostname,
+			Host:   c.TargetHostname,
 		}
 		if url.Host == "" {
 			url.Host = "localhost"
@@ -141,7 +141,7 @@ func (c *Client) Request(ctx context.Context) (stat healthcheck.Status, err erro
 		}()
 	}
 
-	timeout := c.Config.RequestTimeout
+	timeout := c.RequestTimeout
 	if timeout == 0 {
 		timeout = 3 * time.Second
 	}

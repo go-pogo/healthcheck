@@ -33,13 +33,13 @@ func NopLogger() Logger { return new(nopLogger) }
 type logger struct{ *log.Logger }
 
 func (l *logger) LogHealthChanged(status, oldStatus Status, details map[string]Status) {
-	l.Logger.Printf("health changed from %s to %s\n", oldStatus, status)
+	l.Printf("health changed from %s to %s\n", oldStatus, status)
 	if details == nil {
 		return
 	}
 
 	for name, stat := range details {
-		l.Logger.Printf("health for %s is %s\n", name, stat)
+		l.Printf("health for %s is %s\n", name, stat)
 	}
 }
 

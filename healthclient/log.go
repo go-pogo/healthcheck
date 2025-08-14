@@ -36,11 +36,11 @@ func NopLogger() Logger { return new(nopLogger) }
 type logger struct{ *log.Logger }
 
 func (l *logger) LogHealthChecked(stat healthcheck.Status) {
-	l.Logger.Printf("health checked: %s\n", stat)
+	l.Printf("health checked: %s\n", stat)
 }
 
 func (l *logger) LogHealthCheckFailed(stat healthcheck.Status, err error) {
-	l.Logger.Printf("health check failed: %s: %+v\n", stat, err)
+	l.Printf("health check failed: %s: %+v\n", stat, err)
 }
 
 type nopLogger struct{}
